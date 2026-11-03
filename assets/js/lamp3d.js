@@ -1,376 +1,663 @@
-// Lampe à lévitation en 3D (Three.js) — liasse lumineuse + socle hexagonal.
+// LA LIASSE — scène 3D Miami : lampe à lévitation, palmiers, soleil, grille néon, pluie de billets.
 import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
-const BRAND_SHORT = 'STACK';
+const BAND_TEXT = 'LA LIASSE';
+const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
+const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-/* ---------- Textures générées (aucune image externe) ---------- */
-
-function canvas(w, h) {
+/* =========================================================
+   Textures dessinées en canvas
+   ========================================================= */
+function cnv(w, h) {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   return [c, c.getContext('2d')];
 }
+function rand(seed) { let s = seed; return () => (s = (s * 16807) % 2147483647) / 2147483647; }
 
 function star(ctx, x, y, r, color) {
-  ctx.save();
   ctx.fillStyle = color;
   ctx.beginPath();
   for (let i = 0; i < 10; i++) {
     const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const rr = i % 2 ? r * 0.45 : r;
+    const rr = i % 2 ? r * 0.42 : r;
     ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
   }
   ctx.closePath();
   ctx.fill();
-  ctx.restore();
 }
 
+// Bandeau blanc à deux liserés gris (comme sur le vrai produit)
 function band(ctx, cx, w, h, { stars = false, text = false } = {}) {
-  ctx.fillStyle = '#f7f4ec';
+  ctx.fillStyle = '#fbf8f1';
   ctx.fillRect(cx - w / 2, 0, w, h);
-  ctx.fillStyle = '#6f7d82';
-  const s = w * 0.13;
+  ctx.fillStyle = '#7d8c90';
+  const s = w * 0.12;
   ctx.fillRect(cx - w / 2, 0, s, h);
   ctx.fillRect(cx + w / 2 - s, 0, s, h);
-  if (stars) {
-    for (let i = 0; i < 3; i++) star(ctx, cx, h * (0.22 + i * 0.28), w * 0.24, '#7a878c');
-  }
+  if (stars) for (let i = 0; i < 3; i++) star(ctx, cx, h * (0.24 + i * 0.26), w * 0.2, '#808e93');
   if (text) {
     ctx.save();
     ctx.translate(cx, h / 2);
     ctx.rotate(-Math.PI / 2);
-    ctx.fillStyle = '#5d6a6f';
-    ctx.font = `bold ${w * 0.32}px Anton, Impact, sans-serif`;
+    ctx.fillStyle = '#66757a';
+    ctx.font = `600 ${w * 0.26}px Inter, Arial, sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(BRAND_SHORT, 0, 0);
+    ctx.fillText(BAND_TEXT, 0, 0);
     ctx.restore();
   }
 }
 
-function billTexture() {
-  const W = 1024, H = 442;
-  const [c, ctx] = canvas(W, H);
-  const ink = '#4b5a3e';
-  const g = ctx.createLinearGradient(0, 0, W, H);
-  g.addColorStop(0, '#efe8cf');
-  g.addColorStop(0.5, '#e6e4c8');
-  g.addColorStop(1, '#ece2c6');
+// Liseré clair sur les arêtes (effet résine translucide)
+function rim(ctx, W, H) {
+  ctx.strokeStyle = 'rgba(255,255,255,.55)';
+  ctx.lineWidth = 10;
+  ctx.strokeRect(0, 0, W, H);
+}
+
+// Point chaud de la LED intérieure
+function hotspot(ctx, W, H, k = 1) {
+  const g = ctx.createRadialGradient(W / 2, H * 0.55, 0, W / 2, H * 0.55, W * 0.55);
+  g.addColorStop(0, `rgba(255,255,240,${0.55 * k})`);
+  g.addColorStop(1, 'rgba(255,255,240,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, W, H);
+}
 
-  // Guilloches
-  ctx.strokeStyle = 'rgba(75,90,62,.16)';
+// Face du dessus : billet de 100 stylisé (gravure sépia + "100" vert)
+function billCanvas({ withBand = true, glow = true } = {}) {
+  const W = 1024, H = 445;
+  const [c, ctx] = cnv(W, H);
+  const ink = '#5a4a36';
+  ctx.fillStyle = '#f1ead6';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = 'rgba(90,74,54,.13)';
   ctx.lineWidth = 1;
-  for (let k = 0; k < 26; k++) {
+  for (let k = 0; k < 34; k++) {
     ctx.beginPath();
-    for (let x = 0; x <= W; x += 6) {
-      const y = 30 + k * 15 + Math.sin(x / 38 + k) * 6;
+    for (let x = 0; x <= W; x += 5) {
+      const y = 18 + k * 12 + Math.sin(x / 30 + k * 0.7) * 5;
       x ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
     }
     ctx.stroke();
   }
-
-  // Bordure ornementale
   ctx.strokeStyle = ink;
-  ctx.lineWidth = 6; ctx.strokeRect(14, 14, W - 28, H - 28);
-  ctx.lineWidth = 2; ctx.strokeRect(28, 28, W - 56, H - 56);
-  for (let x = 40; x < W - 40; x += 14) {
-    ctx.beginPath(); ctx.arc(x, 21, 3, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(x, H - 21, 3, 0, Math.PI * 2); ctx.stroke();
-  }
+  ctx.lineWidth = 5; ctx.strokeRect(16, 16, W - 32, H - 32);
+  ctx.lineWidth = 1.5; ctx.strokeRect(30, 30, W - 60, H - 60);
+  ctx.font = 'bold 13px Georgia, serif';
+  ctx.fillStyle = ink;
+  for (let x = 44; x < W - 40; x += 92) { ctx.fillText('ONE HUNDRED', x, 26); ctx.fillText('ONE HUNDRED', x, H - 19); }
 
-  // Sceau
-  ctx.save();
-  ctx.translate(140, 205);
+  // sceau
+  ctx.save(); ctx.translate(110, 215);
   ctx.strokeStyle = ink; ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.arc(0, 0, 58, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(0, 0, 46, 0, Math.PI * 2); ctx.stroke();
-  for (let i = 0; i < 48; i++) {
-    const a = (i / 48) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(Math.cos(a) * 20, Math.sin(a) * 20);
-    ctx.lineTo(Math.cos(a) * 44, Math.sin(a) * 44);
-    ctx.stroke();
+  ctx.beginPath(); ctx.arc(0, 0, 50, 0, Math.PI * 2); ctx.stroke();
+  for (let i = 0; i < 60; i++) {
+    const a = (i / 60) * Math.PI * 2;
+    ctx.beginPath(); ctx.moveTo(Math.cos(a) * 36, Math.sin(a) * 36); ctx.lineTo(Math.cos(a) * 46, Math.sin(a) * 46); ctx.stroke();
   }
-  star(ctx, 0, 0, 18, ink);
+  star(ctx, 0, 0, 22, ink);
   ctx.restore();
 
-  // Médaillon : soleil couchant + palmier
-  ctx.save();
-  ctx.translate(330, 221);
-  ctx.beginPath(); ctx.ellipse(0, 0, 105, 150, 0, 0, Math.PI * 2); ctx.clip();
-  ctx.fillStyle = '#e9dfc0'; ctx.fillRect(-120, -160, 240, 320);
-  ctx.fillStyle = 'rgba(75,90,62,.55)';
-  ctx.beginPath(); ctx.arc(0, 30, 80, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = '#e9dfc0';
-  for (let i = 0; i < 6; i++) ctx.fillRect(-90, 30 - 8 - i * 12, 180, 3 + i * 0.6);
-  ctx.strokeStyle = 'rgba(75,90,62,.5)'; ctx.lineWidth = 1.2;
-  for (let y = 40; y < 160; y += 7) { ctx.beginPath(); ctx.moveTo(-110, y); ctx.lineTo(110, y); ctx.stroke(); }
-  // palmier
-  ctx.strokeStyle = ink; ctx.lineWidth = 9; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(30, 150); ctx.quadraticCurveTo(40, 40, 5, -55); ctx.stroke();
-  ctx.lineWidth = 5;
-  [[-80, -40], [-60, -95], [0, -110], [60, -90], [75, -35], [-30, -20]].forEach(([dx, dy]) => {
-    ctx.beginPath(); ctx.moveTo(5, -55); ctx.quadraticCurveTo(5 + dx * 0.5, -55 + dy * 0.6 - 25, 5 + dx, -55 + dy * 0.5 + 25); ctx.stroke();
-  });
+  // médaillon portrait gravé
+  ctx.save(); ctx.translate(330, 222);
+  ctx.beginPath(); ctx.ellipse(0, 0, 112, 158, 0, 0, Math.PI * 2); ctx.clip();
+  ctx.fillStyle = '#e8dcc0'; ctx.fillRect(-130, -170, 260, 340);
+  ctx.strokeStyle = 'rgba(90,74,54,.55)'; ctx.lineWidth = 1.3;
+  for (let y = -170; y < 170; y += 5) { ctx.beginPath(); ctx.moveTo(-130, y); ctx.lineTo(130, y); ctx.stroke(); }
+  ctx.fillStyle = '#6b5640';
+  ctx.beginPath(); ctx.moveTo(-130, 170); ctx.quadraticCurveTo(-110, 55, -30, 40); ctx.lineTo(40, 40); ctx.quadraticCurveTo(115, 55, 130, 170); ctx.fill();
+  ctx.fillStyle = '#efe5cc';
+  ctx.beginPath(); ctx.moveTo(-22, 40); ctx.lineTo(0, 110); ctx.lineTo(24, 40); ctx.fill();
+  ctx.fillStyle = '#7a6448';
+  ctx.beginPath(); ctx.ellipse(-30, -10, 34, 70, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(40, -5, 22, 55, -0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#d9c9a6';
+  ctx.beginPath(); ctx.ellipse(6, -22, 40, 58, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = 'rgba(90,74,54,.6)'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-12, -40); ctx.lineTo(-2, -40); ctx.moveTo(14, -40); ctx.lineTo(24, -40); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(6, -30); ctx.lineTo(2, -6); ctx.lineTo(9, -4); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-6, 10); ctx.quadraticCurveTo(6, 16, 18, 10); ctx.stroke();
   ctx.restore();
   ctx.strokeStyle = ink; ctx.lineWidth = 3;
-  ctx.beginPath(); ctx.ellipse(330, 221, 105, 150, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(330, 222, 112, 158, 0, 0, Math.PI * 2); ctx.stroke();
 
-  // Textes
+  // textes & chiffres
+  ctx.fillStyle = ink; ctx.textAlign = 'center';
+  ctx.font = 'bold 25px Georgia, serif';
+  ctx.fillText('THE LIASSE RESERVE NOTE', 790, 76);
+  ctx.font = 'italic 18px Georgia, serif';
+  ctx.fillText('IN SUNSET WE TRUST', 790, 104);
+  ctx.font = 'bold 44px Georgia, serif';
+  ctx.fillText('100', 82, 80);
+  ctx.fillText('100', 82, H - 46);
+  ctx.fillStyle = '#4f8a5c';
+  ctx.font = 'bold 130px Georgia, serif';
+  ctx.fillText('100', 800, 300);
+  ctx.font = '22px "Courier New", monospace';
+  ctx.fillText('LL 19112026 A', 790, 345);
   ctx.fillStyle = ink;
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 26px Georgia, serif';
-  ctx.fillText('THE UNITED STACKS OF NEON', 780, 72);
+  ctx.font = 'bold 30px Georgia, serif';
+  ctx.fillText('100', 945, H - 46);
   ctx.font = 'italic 20px Georgia, serif';
-  ctx.fillText('IN SUNSET WE TRUST', 780, 104);
-  ctx.font = 'bold 120px Georgia, serif';
-  ctx.fillStyle = 'rgba(64,110,70,.85)';
-  ctx.fillText('100', 790, 285);
-  ctx.fillStyle = ink;
-  ctx.font = 'bold 46px Georgia, serif';
-  ctx.fillText('100', 80, 82);
-  ctx.fillText('100', 945, H - 50);
-  ctx.font = '22px monospace';
-  ctx.fillStyle = '#3f7a4a';
-  ctx.fillText('NS 1911 2026 A', 780, 340);
-  ctx.font = 'bold 22px Georgia, serif';
-  ctx.fillStyle = ink;
-  ctx.fillText('ONE HUNDRED BUCKS', 780, 390);
+  ctx.fillText('One Hundred Bucks', 790, 385);
 
-  band(ctx, W / 2, 92, H, { text: true });
+  if (withBand) band(ctx, W / 2, 96, H, { text: true });
+  if (glow) { hotspot(ctx, W, H, 0.7); rim(ctx, W, H); }
   return c;
 }
 
-function paperTexture(W, H, withBand) {
-  const [c, ctx] = canvas(W, H);
-  ctx.fillStyle = '#f3ecd9';
+// Tranches : feuilles empilées
+function paperCanvas(W, H, withBand, seed) {
+  const r = rand(seed);
+  const [c, ctx] = cnv(W, H);
+  ctx.fillStyle = '#f6efdf';
   ctx.fillRect(0, 0, W, H);
   for (let y = 0; y < H; y += 2) {
-    const l = 88 + Math.random() * 10;
-    ctx.fillStyle = `hsla(${40 + Math.random() * 8}, 45%, ${l}%, ${0.35 + Math.random() * 0.5})`;
-    ctx.fillRect(0, y, W, 1 + (Math.random() > 0.8 ? 1 : 0));
+    const l = 86 + r() * 12;
+    ctx.fillStyle = `hsla(${38 + r() * 8}, 40%, ${l}%, ${0.3 + r() * 0.6})`;
+    ctx.fillRect(0, y, W, 1 + (r() > 0.8 ? 1 : 0));
   }
-  for (let i = 0; i < 18; i++) {
-    const y = Math.random() * H;
-    ctx.fillStyle = 'rgba(160,140,100,.18)';
-    ctx.fillRect(0, y, W, 1);
+  for (let i = 0; i < 26; i++) {
+    ctx.fillStyle = 'rgba(150,125,85,.16)';
+    ctx.fillRect(0, r() * H, W, 1);
   }
-  if (withBand) band(ctx, W / 2, 92, H, { stars: true });
+  hotspot(ctx, W, H, 1);
+  if (withBand) band(ctx, W / 2, 96, H, { stars: true });
+  rim(ctx, W, H);
   return c;
 }
 
-function radial(stops, size = 256) {
-  const [c, ctx] = canvas(size, size);
+function palmCanvas(seed) {
+  const r = rand(seed);
+  const [c, ctx] = cnv(512, 1024);
+  const col = '#0d0316';
+  const lean = (r() - 0.5) * 140;
+  ctx.strokeStyle = col; ctx.lineCap = 'round';
+  for (let i = 0; i < 40; i++) {
+    const t = i / 40;
+    ctx.lineWidth = 34 - t * 16;
+    ctx.beginPath();
+    ctx.moveTo(256 + lean * t * t, 1024 - t * 760);
+    ctx.lineTo(256 + lean * (t + 0.03) ** 2, 1024 - (t + 0.03) * 760);
+    ctx.stroke();
+  }
+  const tx = 256 + lean, ty = 264;
+  ctx.fillStyle = col;
+  const fronds = 9;
+  for (let f = 0; f < fronds; f++) {
+    const a = -Math.PI + (f / (fronds - 1)) * Math.PI + (r() - 0.5) * 0.25;
+    const len = 190 + r() * 60;
+    const droop = 0.9 + r() * 0.4;
+    const ex = tx + Math.cos(a) * len, ey = ty + Math.sin(a) * len * 0.45 + len * 0.35 * droop * Math.abs(Math.cos(a));
+    const mx = tx + Math.cos(a) * len * 0.5, my = ty + Math.sin(a) * len * 0.5 - 30;
+    const nx = -Math.sin(a), ny = Math.cos(a);
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.quadraticCurveTo(mx + nx * 26, my + ny * 26, ex, ey);
+    ctx.quadraticCurveTo(mx - nx * 12, my - ny * 12 + 20, tx, ty);
+    ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = col;
+    for (let k = 2; k < 11; k++) {
+      const t = k / 11;
+      const px = tx + (ex - tx) * t, py = ty + (ey - ty) * t - Math.sin(t * Math.PI) * 26;
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + nx * 34 * (1 - t) + 8, py + 30 * (1 - t) + 14); ctx.stroke();
+    }
+  }
+  ctx.beginPath(); ctx.arc(tx, ty + 6, 18, 0, Math.PI * 2); ctx.fill();
+  return c;
+}
+
+function skylineCanvas() {
+  const r = rand(7);
+  const W = 2048, H = 512;
+  const [c, ctx] = cnv(W, H);
+  let x = 0;
+  while (x < W) {
+    const w = 40 + r() * 90;
+    const h = 60 + r() * (r() > 0.85 ? 330 : 190);
+    ctx.fillStyle = '#1a0628';
+    ctx.fillRect(x, H - h, w, h);
+    for (let wy = H - h + 10; wy < H - 6; wy += 14) {
+      for (let wx = x + 6; wx < x + w - 8; wx += 12) {
+        if (r() > 0.72) {
+          ctx.fillStyle = r() > 0.5 ? 'rgba(255,120,200,.85)' : r() > 0.5 ? 'rgba(80,230,255,.8)' : 'rgba(255,210,140,.8)';
+          ctx.fillRect(wx, wy, 5, 7);
+        }
+      }
+    }
+    if (r() > 0.75) {
+      ctx.fillStyle = r() > 0.5 ? '#ff2e88' : '#22e4ff';
+      ctx.fillRect(x + 4, H - h - 4, w - 8, 4);
+    }
+    x += w + 2 + r() * 10;
+  }
+  return c;
+}
+
+function toTex(c, renderer) {
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  if (renderer) t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+function radialTex(stops, size = 256) {
+  const [c, ctx] = cnv(size, size);
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   stops.forEach(([o, col]) => g.addColorStop(o, col));
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  return toTex(c);
 }
 
-function tex(c, renderer) {
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
-  return t;
+/* =========================================================
+   Socle : hexagone facetté irrégulier (antiprisme)
+   ========================================================= */
+function baseGeometry() {
+  const r = rand(42);
+  const n = 6;
+  const ring = (rad, y, off, jitter) => Array.from({ length: n }, (_, i) => {
+    const a = off + (i / n) * Math.PI * 2;
+    const rr = rad * (1 + (r() - 0.5) * jitter);
+    return new THREE.Vector3(Math.cos(a) * rr, y, Math.sin(a) * rr);
+  });
+  const b = ring(1.5, 0, 0, 0.08);
+  const m = ring(1.74, 0.17, Math.PI / n, 0.1);
+  const t = ring(1.56, 0.4, 0.12, 0.08);
+  const pos = [];
+  const tri = (p, q, s) => pos.push(p.x, p.y, p.z, q.x, q.y, q.z, s.x, s.y, s.z);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    tri(b[i], m[i], b[j]); tri(m[i], m[j], b[j]);
+    tri(m[i], t[i], m[j]); tri(t[i], t[j], m[j]);
+  }
+  const top = new THREE.Vector3(0, 0.4, 0), bot = new THREE.Vector3(0, 0, 0);
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    tri(top, t[j], t[i]);
+    tri(bot, b[i], b[j]);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.computeVertexNormals();
+  return g;
 }
 
-/* ---------- Scène ---------- */
-
-export function mountLamp(canvasEl) {
-  const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+/* =========================================================
+   Scène
+   ========================================================= */
+export function mountScene(canvasEl, opts = {}) {
+  const renderer = new THREE.WebGLRenderer({ canvas: canvasEl, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, isMobile() ? 1.5 : 1.75));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.9;
+  renderer.toneMappingExposure = 1.0;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 100);
+  scene.background = new THREE.Color(0x14061f);
+  scene.fog = new THREE.Fog(0x2a0a3d, 18, 70);
+  const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 200);
 
-  // Lumières d'ambiance Miami
-  scene.add(new THREE.HemisphereLight(0x8a7cff, 0x1a0b2e, 0.9));
-  const pink = new THREE.DirectionalLight(0xff3d9a, 2.2);
-  pink.position.set(-5, 3, 2);
-  scene.add(pink);
-  const cyan = new THREE.DirectionalLight(0x29e6ff, 1.8);
-  cyan.position.set(5, 2.5, -1);
-  scene.add(cyan);
-  const key = new THREE.DirectionalLight(0xffe2c0, 0.55);
-  key.position.set(2, 6, 5);
-  key.castShadow = true;
-  key.shadow.mapSize.set(1024, 1024);
-  key.shadow.radius = 6;
-  scene.add(key);
+  const vtx = 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.); }';
 
-  const root = new THREE.Group();
-  scene.add(root);
-
-  /* Socle hexagonal facetté */
-  const pts = [
-    new THREE.Vector2(0, 0),
-    new THREE.Vector2(1.55, 0),
-    new THREE.Vector2(1.78, 0.13),
-    new THREE.Vector2(1.6, 0.38),
-    new THREE.Vector2(0, 0.38),
-  ];
-  const baseGeo = new THREE.LatheGeometry(pts, 6);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x0e0d12, roughness: 0.42, metalness: 0.35, flatShading: true });
-  const base = new THREE.Mesh(baseGeo, baseMat);
-  base.rotation.y = Math.PI / 6;
-  base.castShadow = true;
-  base.receiveShadow = true;
-  root.add(base);
-
-  // Bouton tactile
-  const btnMat = new THREE.MeshStandardMaterial({ color: 0x2a2014, emissive: 0xffb347, emissiveIntensity: 1.2, metalness: 0.8, roughness: 0.3 });
-  const btn = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.016, 12, 32), btnMat);
-  btn.rotation.x = -Math.PI / 2;
-  btn.position.set(0.55, 0.385, 1.0);
-  root.add(btn);
-
-  // Halo lumineux sur le dessus du socle
-  const poolMat = new THREE.MeshBasicMaterial({
-    map: radial([[0, 'rgba(255,196,120,1)'], [0.45, 'rgba(255,150,70,.45)'], [1, 'rgba(255,120,40,0)']]),
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-  });
-  const pool = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 3.2), poolMat);
-  pool.rotation.x = -Math.PI / 2;
-  pool.position.y = 0.386;
-  root.add(pool);
-
-  // Reflet néon au sol
-  const floorGlow = new THREE.Mesh(
-    new THREE.PlaneGeometry(7, 7),
-    new THREE.MeshBasicMaterial({
-      map: radial([[0, 'rgba(255,70,160,.55)'], [0.5, 'rgba(120,40,200,.25)'], [1, 'rgba(0,0,0,0)']]),
-      transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  /* --- Ciel --- */
+  const sky = new THREE.Mesh(
+    new THREE.PlaneGeometry(400, 120),
+    new THREE.ShaderMaterial({
+      fog: false, depthWrite: false, vertexShader: vtx,
+      fragmentShader: `
+        varying vec2 vUv;
+        void main(){
+          float y = vUv.y;
+          vec3 c = mix(vec3(1.0,0.55,0.32), vec3(0.95,0.22,0.48), smoothstep(0.0,0.12,y));
+          c = mix(c, vec3(0.42,0.08,0.52), smoothstep(0.12,0.3,y));
+          c = mix(c, vec3(0.08,0.02,0.14), smoothstep(0.3,0.6,y));
+          gl_FragColor = vec4(pow(c, vec3(2.2)), 1.);
+        }`,
     })
   );
-  floorGlow.rotation.x = -Math.PI / 2;
-  floorGlow.position.y = -0.01;
-  root.add(floorGlow);
+  sky.position.set(0, 58, -90);
+  scene.add(sky);
 
-  const shadowCatcher = new THREE.Mesh(new THREE.PlaneGeometry(10, 10), new THREE.ShadowMaterial({ opacity: 0.45 }));
-  shadowCatcher.rotation.x = -Math.PI / 2;
-  shadowCatcher.receiveShadow = true;
-  root.add(shadowCatcher);
-
-  /* Liasse lumineuse */
-  const L = 2.3, D = 1.0, Hh = 1.0;
-  const top = tex(billTexture(), renderer);
-  const side = tex(paperTexture(1024, 442, true), renderer);
-  const end = tex(paperTexture(512, 512, false), renderer);
-  const mk = (map) => new THREE.MeshStandardMaterial({
-    map, color: 0x6a6a6a, emissiveMap: map, emissive: new THREE.Color(0xffb35c), emissiveIntensity: 0.85, roughness: 0.9, metalness: 0,
+  /* --- Soleil rayé --- */
+  const sunMat = new THREE.ShaderMaterial({
+    fog: false, transparent: true, depthWrite: false, vertexShader: vtx,
+    uniforms: { uTime: { value: 0 } },
+    fragmentShader: `
+      uniform float uTime; varying vec2 vUv;
+      void main(){
+        vec2 p = vUv*2.-1.;
+        if (length(p) > 1.) discard;
+        vec3 c = mix(vec3(1.0,0.18,0.55), vec3(1.0,0.86,0.35), smoothstep(-0.9,0.8,p.y));
+        if (p.y < 0.15) {
+          float s = fract((p.y - uTime*0.05) * 9.);
+          float gap = mix(0.05, 0.6, smoothstep(0.15,-1.,p.y));
+          if (s < gap) discard;
+        }
+        gl_FragColor = vec4(pow(c, vec3(2.2))*1.6, 1.);
+      }`,
   });
-  const mats = [mk(end), mk(end), mk(top), mk(top), mk(side), mk(side)];
-  const stack = new THREE.Mesh(new THREE.BoxGeometry(L, Hh, D), mats);
-  stack.castShadow = true;
-
-  const stackPivot = new THREE.Group();
-  stackPivot.add(stack);
-  root.add(stackPivot);
-  const BASE_Y = 0.38 + 0.55 + Hh / 2;
-
-  // Halo autour de la liasse
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: radial([[0, 'rgba(255,200,130,.9)'], [0.35, 'rgba(255,150,80,.35)'], [1, 'rgba(255,120,60,0)']]),
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  const sun = new THREE.Mesh(new THREE.PlaneGeometry(44, 44), sunMat);
+  sun.position.set(0, 12, -80);
+  scene.add(sun);
+  const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: radialTex([[0, 'rgba(255,90,150,.55)'], [0.4, 'rgba(255,60,130,.18)'], [1, 'rgba(0,0,0,0)']]),
+    blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
   }));
-  halo.scale.set(5.2, 3.4, 1);
-  stackPivot.add(halo);
+  sunGlow.scale.set(80, 80, 1);
+  sunGlow.position.set(0, 12, -82);
+  scene.add(sunGlow);
 
-  const inner = new THREE.PointLight(0xffb066, 6, 6, 1.6);
-  inner.position.y = -0.45;
-  stackPivot.add(inner);
+  /* --- Skyline --- */
+  const skyline = new THREE.Mesh(
+    new THREE.PlaneGeometry(170, 13),
+    new THREE.MeshBasicMaterial({ map: toTex(skylineCanvas()), transparent: true, fog: false, depthWrite: false })
+  );
+  skyline.position.set(0, 6.4, -72);
+  scene.add(skyline);
 
-  /* Interaction : glisser pour faire tourner (le scroll vertical reste libre) */
-  let on = true, glow = 1;
-  let spin = 0, vel = 0, dragging = false, lastX = 0;
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  canvasEl.addEventListener('pointerdown', (e) => { dragging = true; lastX = e.clientX; canvasEl.setPointerCapture(e.pointerId); });
-  canvasEl.addEventListener('pointermove', (e) => {
+  /* --- Sol : grille néon qui défile --- */
+  const gridMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader: 'varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }',
+    fragmentShader: `
+      uniform float uTime; varying vec3 vW;
+      float ln(float c){ float d = abs(fract(c-0.5)-0.5)/fwidth(c); return 1.-min(d/1.3,1.); }
+      void main(){
+        vec2 p = vW.xz/1.7; p.y -= uTime*0.8;
+        float g = max(ln(p.x), ln(p.y));
+        float far = smoothstep(65., 4., -vW.z + abs(vW.x)*0.3);
+        float near = smoothstep(2.0, 4.5, length(vW.xz));
+        vec3 base = vec3(0.05,0.008,0.09);
+        vec3 col = mix(vec3(1.0,0.12,0.55), vec3(0.5,0.2,1.0), smoothstep(0.,40.,-vW.z));
+        float refl = exp(-abs(vW.x)*0.18) * smoothstep(0., 60., -vW.z) * 0.35;
+        vec3 c = base + col * g * far * (0.35 + 0.65*near) * 1.6 + vec3(1.0,0.35,0.45)*refl;
+        gl_FragColor = vec4(c, 1.);
+      }`,
+  });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(240, 160), gridMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.z = -50;
+  scene.add(floor);
+
+  /* --- Palmiers --- */
+  const palmTex = [toTex(palmCanvas(3)), toTex(palmCanvas(11)), toTex(palmCanvas(23))];
+  const palms = [];
+  [
+    [-6.5, -3, 6.5], [-10, -8, 8], [-5, -14, 7.5], [-15, -18, 10], [-24, -28, 12], [-34, -40, 13],
+    [7, -4, 7], [11.5, -9, 8.5], [6, -16, 7.5], [17, -22, 10.5], [26, -30, 12], [36, -42, 13],
+  ].forEach(([x, z, h], i) => {
+    const mat = new THREE.MeshBasicMaterial({ map: palmTex[i % 3], transparent: true, alphaTest: 0.4, side: THREE.DoubleSide });
+    const geo = new THREE.PlaneGeometry(h / 2, h);
+    geo.translate(0, h / 2, 0);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(x, 0, z);
+    m.userData.phase = i * 1.7;
+    m.userData.flip = x < 0 ? -1 : 1;
+    scene.add(m);
+    palms.push(m);
+  });
+
+  /* --- Lumières --- */
+  scene.add(new THREE.HemisphereLight(0x9a7cff, 0x1a0b2e, 0.7));
+  const pink = new THREE.DirectionalLight(0xff3d9a, 3.2); pink.position.set(-6, 3, 1); scene.add(pink);
+  const cyan = new THREE.DirectionalLight(0x29e6ff, 2.4); cyan.position.set(6, 2.5, -2); scene.add(cyan);
+  const key = new THREE.DirectionalLight(0xffe2c0, 0.6);
+  key.position.set(2, 8, 5); key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  Object.assign(key.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4 });
+  scene.add(key);
+
+  /* --- Lampe --- */
+  const lamp = new THREE.Group();
+  lamp.rotation.x = 0.12;
+  scene.add(lamp);
+
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x0b0a0d, roughness: 0.5, metalness: 0.25 });
+  const base = new THREE.Mesh(baseGeometry(), baseMat);
+  base.castShadow = true; base.receiveShadow = true;
+  lamp.add(base);
+
+  // bouton tactile (pictogramme power)
+  const btnMat = new THREE.MeshStandardMaterial({ color: 0x1a140c, emissive: 0xffb04a, emissiveIntensity: 2, metalness: 0.6, roughness: 0.3 });
+  const btn = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.085, 0.014, 10, 40, Math.PI * 1.6), btnMat);
+  ring.rotation.z = Math.PI / 2 + Math.PI * 0.2;
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.08, 0.01), btnMat);
+  bar.position.y = 0.06;
+  btn.add(ring, bar);
+  btn.rotation.x = -Math.PI / 2;
+  btn.position.set(0.75, 0.404, 0.85);
+  lamp.add(btn);
+
+  const poolMat = new THREE.MeshBasicMaterial({
+    map: radialTex([[0, 'rgba(255,200,130,1)'], [0.4, 'rgba(255,150,70,.5)'], [1, 'rgba(255,120,40,0)']]),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  });
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.5), poolMat);
+  pool.rotation.x = -Math.PI / 2; pool.position.y = 0.405;
+  lamp.add(pool);
+
+  const groundGlow = new THREE.Mesh(new THREE.PlaneGeometry(9, 9), new THREE.MeshBasicMaterial({
+    map: radialTex([[0, 'rgba(255,170,90,.55)'], [0.35, 'rgba(255,60,150,.22)'], [1, 'rgba(0,0,0,0)']]),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+  groundGlow.rotation.x = -Math.PI / 2; groundGlow.position.y = 0.01;
+  lamp.add(groundGlow);
+
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(14, 14), new THREE.ShadowMaterial({ opacity: 0.5 }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.012; shadow.receiveShadow = true;
+  lamp.add(shadow);
+
+  // liasse
+  const L = 2.3, Hh = 0.98, D = 0.98;
+  const topTex = toTex(billCanvas(), renderer);
+  const sideA = toTex(paperCanvas(1024, 436, true, 5), renderer);
+  const sideB = toTex(paperCanvas(1024, 436, true, 9), renderer);
+  const endTex = toTex(paperCanvas(512, 512, false, 13), renderer);
+  const mk = (map) => new THREE.MeshStandardMaterial({
+    map, color: 0x8a8a8a, emissiveMap: map, emissive: new THREE.Color(0xffc27a), emissiveIntensity: 1, roughness: 0.85,
+  });
+  const stackMats = [mk(endTex), mk(endTex), mk(topTex), mk(topTex), mk(sideA), mk(sideB)];
+  const stack = new THREE.Mesh(new THREE.BoxGeometry(L, Hh, D), stackMats);
+  stack.castShadow = true;
+  const pivot = new THREE.Group();
+  pivot.add(stack);
+  lamp.add(pivot);
+  const FLOAT_Y = 0.4 + 0.5 + Hh / 2;
+
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: radialTex([[0, 'rgba(255,205,140,.7)'], [0.35, 'rgba(255,150,80,.25)'], [1, 'rgba(255,120,60,0)']]),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+  }));
+  halo.scale.set(5.5, 3.6, 1);
+  pivot.add(halo);
+  const inner = new THREE.PointLight(0xffb066, 8, 7, 1.6);
+  inner.position.y = -0.5;
+  pivot.add(inner);
+
+  /* --- Billets volants --- */
+  const billTex = toTex(billCanvas({ withBand: false, glow: false }), renderer);
+  const MAX_BILLS = 90;
+  const bills = new THREE.InstancedMesh(
+    new THREE.PlaneGeometry(0.66, 0.29),
+    new THREE.MeshBasicMaterial({ map: billTex, side: THREE.DoubleSide, color: 0xd8d2c6, fog: false }),
+    MAX_BILLS
+  );
+  bills.frustumCulled = false;
+  scene.add(bills);
+  const dummy = new THREE.Object3D();
+  const nAmbient = isMobile() ? 10 : 18;
+  const B = Array.from({ length: MAX_BILLS }, (_, i) => ({ active: false, ambient: i < nAmbient }));
+  function spawn(b, burst) {
+    b.active = true;
+    b.burst = burst;
+    if (burst) {
+      b.p = new THREE.Vector3((Math.random() - 0.5) * 0.6, FLOAT_Y + 0.4, (Math.random() - 0.5) * 0.4);
+      const a = Math.random() * Math.PI * 2;
+      const s = 3 + Math.random() * 4;
+      b.v = new THREE.Vector3(Math.cos(a) * s * 0.6, 5 + Math.random() * 4, Math.sin(a) * s * 0.4 + 1.2);
+    } else {
+      b.p = new THREE.Vector3((Math.random() - 0.5) * 22, 8 + Math.random() * 8, -3 - Math.random() * 14);
+      b.v = new THREE.Vector3(0, -(0.5 + Math.random() * 0.6), 0);
+    }
+    b.r = new THREE.Euler(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+    b.w = new THREE.Vector3(Math.random() * 3, Math.random() * 3, Math.random() * 3);
+    b.phase = Math.random() * 10;
+  }
+  if (!reduce) B.forEach((b) => { if (b.ambient) { spawn(b, false); b.p.y = Math.random() * 14; } });
+  function moneyBurst(n = 40) {
+    if (reduce) return;
+    let c = 0;
+    for (const b of B) { if (!b.ambient && !b.active) { spawn(b, true); if (++c >= n) break; } }
+  }
+
+  /* --- Bloom néon --- */
+  const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(4, 4, { samples: 4, type: THREE.HalfFloatType }));
+  composer.addPass(new RenderPass(scene, camera));
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.8, 0.5, 0.8);
+  composer.addPass(bloom);
+  composer.addPass(new OutputPass());
+
+  /* --- Interaction --- */
+  let on = true, glow = 0, flicker = 0;
+  let spin = -0.5, vel = 0, dragging = false, lastX = 0, mx = 0, my = 0;
+  const dragEl = opts.dragTarget || canvasEl;
+  dragEl.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('button, a, input, .hero__copy')) return;
+    dragging = true; lastX = e.clientX;
+  });
+  window.addEventListener('pointermove', (e) => {
+    mx = e.clientX / window.innerWidth - 0.5;
+    my = e.clientY / window.innerHeight - 0.5;
     if (!dragging) return;
     const dx = e.clientX - lastX; lastX = e.clientX;
     vel = dx * 0.006; spin += vel;
-  });
-  const stop = () => { dragging = false; };
-  canvasEl.addEventListener('pointerup', stop);
-  canvasEl.addEventListener('pointercancel', stop);
+  }, { passive: true });
+  window.addEventListener('pointerup', () => { dragging = false; });
+  window.addEventListener('pointercancel', () => { dragging = false; });
 
-  let mx = 0, my = 0;
-  window.addEventListener('pointermove', (e) => {
-    mx = (e.clientX / window.innerWidth - 0.5);
-    my = (e.clientY / window.innerHeight - 0.5);
+  let scrollP = 0;
+  const hero = canvasEl.closest('section');
+  window.addEventListener('scroll', () => {
+    const r = hero.getBoundingClientRect();
+    scrollP = Math.min(1, Math.max(0, -r.top / r.height));
   }, { passive: true });
 
-  /* Cadrage responsive */
+  /* --- Cadrage : lampe à gauche (desktop) ou centrée (mobile) --- */
+  let frame = { tx: 0.5, ty: 0.5, f: 0.8, fh: 0.6 };
   function resize() {
     const w = canvasEl.clientWidth, h = canvasEl.clientHeight;
     if (!w || !h) return;
     renderer.setSize(w, h, false);
+    composer.setSize(w, h);
     camera.aspect = w / h;
-    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
-    const dist = Math.max(2.3 / (t * camera.aspect), 1.75 / t) * 1.08;
-    camera.position.set(0, dist * 0.42, dist * 0.95);
-    camera.lookAt(0, 1.0, 0);
+    frame = isMobile() ? { tx: 0.5, ty: 0.5, f: 0.82, fh: 0.6 } : { tx: 0.3, ty: 0.56, f: 0.34, fh: 0.48 };
+    camera.setViewOffset(w, h, w * (0.5 - frame.tx), h * (0.5 - frame.ty), w, h);
     camera.updateProjectionMatrix();
   }
   new ResizeObserver(resize).observe(canvasEl);
   resize();
 
+  function cameraDist() {
+    const t = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    return Math.max(2.1 / (t * camera.aspect * frame.f), 1.4 / (t * frame.fh));
+  }
+
   let visible = true;
   new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(canvasEl);
 
+  /* --- Boucle --- */
   const clock = new THREE.Clock();
-  let firstFrame = true;
-  function frame() {
-    requestAnimationFrame(frame);
+  const INTRO = reduce ? 0 : 2.6;
+  let ready = false;
+  const ease = (x) => 1 - Math.pow(1 - x, 3);
+  const back = (x) => { const c1 = 1.5, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+
+  function loop() {
+    requestAnimationFrame(loop);
     if (!visible) { clock.getDelta(); return; }
     const dt = Math.min(clock.getDelta(), 0.05);
     const t = clock.elapsedTime;
+    const intro = INTRO ? Math.min(1, t / INTRO) : 1;
 
-    if (!dragging) { vel *= 0.94; spin += vel + (reduce ? 0 : dt * 0.35); }
-    stackPivot.rotation.y = spin;
-    stackPivot.position.y = BASE_Y + (reduce ? 0 : Math.sin(t * 1.5) * 0.07);
+    // caméra : travelling d'intro + parallax + scroll
+    const d = cameraDist();
+    const ci = ease(Math.min(1, intro * 1.15));
+    camera.position.set(mx * 0.8 - (1 - ci) * 3, 1 + d * 0.2 + (1 - ci) * 3 + scrollP * 2.5 - my * 0.4, d * (1 + (1 - ci) * 1.6));
+    camera.lookAt(0, 1.0 + scrollP * 0.5, 0);
+
+    // la liasse tombe puis lévite
+    const drop = Math.min(1, Math.max(0, (intro - 0.25) / 0.45));
+    pivot.position.y = FLOAT_Y + (1 - back(drop)) * 4 + (reduce ? 0 : Math.sin(t * 1.5) * 0.06 * drop);
+    if (!dragging) { vel *= 0.94; spin += vel + (reduce ? 0 : dt * 0.4); }
+    pivot.rotation.y = spin + scrollP * Math.PI;
     stack.rotation.z = reduce ? 0 : Math.sin(t * 0.9) * 0.015;
 
-    glow += ((on ? 1 : 0) - glow) * Math.min(1, dt * 6);
-    mats.forEach((m) => { m.emissiveIntensity = 0.04 + glow * 0.81; });
-    inner.intensity = glow * 6;
-    halo.material.opacity = glow;
-    poolMat.opacity = 0.15 + glow * 0.85 + Math.sin(t * 1.5) * 0.05 * glow;
-    btnMat.emissiveIntensity = 0.3 + glow * 1.2;
+    // allumage avec scintillement néon
+    const want = on && intro > 0.62 ? 1 : 0;
+    glow += (want - glow) * Math.min(1, dt * 5);
+    if (flicker > 0) flicker -= dt;
+    let g = glow;
+    if (want && (intro < 0.8 || flicker > 0)) g *= Math.random() > 0.35 ? 1 : 0.15;
+    stackMats.forEach((m) => { m.emissiveIntensity = 0.06 + g * 0.88; });
+    inner.intensity = g * 8;
+    halo.material.opacity = g * 0.9;
+    poolMat.opacity = 0.08 + g * 0.5;
+    btnMat.emissiveIntensity = 0.4 + g * 2;
+    bloom.strength = 0.5 + g * 0.35;
 
-    root.rotation.y += ((mx * 0.25) - root.rotation.y) * 0.05;
-    root.rotation.x += ((my * 0.06) - root.rotation.x) * 0.05;
+    // décor animé
+    sunMat.uniforms.uTime.value = t;
+    gridMat.uniforms.uTime.value = reduce ? 0 : t;
+    palms.forEach((p) => {
+      p.lookAt(camera.position.x, p.position.y, camera.position.z);
+      p.rotateZ(reduce ? 0 : Math.sin(t * 0.8 + p.userData.phase) * 0.025);
+      p.scale.x = p.userData.flip;
+    });
 
-    renderer.render(scene, camera);
-    if (firstFrame) { firstFrame = false; window.__lampReady = true; window.dispatchEvent(new Event('lamp:ready')); }
+    // billets
+    B.forEach((b, i) => {
+      if (!b.active) { dummy.position.set(0, -50, 0); dummy.updateMatrix(); bills.setMatrixAt(i, dummy.matrix); return; }
+      if (b.burst) { b.v.y = Math.max(-1.6, b.v.y - 9.8 * dt * 0.55); b.v.x *= 0.985; b.v.z *= 0.985; }
+      b.p.addScaledVector(b.v, dt);
+      b.p.x += Math.sin(t * 1.3 + b.phase) * dt * 0.5;
+      b.r.x += b.w.x * dt; b.r.y += b.w.y * dt; b.r.z += b.w.z * dt;
+      if (b.p.y < -0.5) { if (b.ambient) spawn(b, false); else b.active = false; }
+      dummy.position.copy(b.p); dummy.rotation.copy(b.r); dummy.scale.setScalar(b.burst ? 1 : 1.4);
+      dummy.updateMatrix();
+      bills.setMatrixAt(i, dummy.matrix);
+    });
+    bills.instanceMatrix.needsUpdate = true;
+
+    composer.render();
+    if (!ready) { ready = true; window.__lampReady = true; window.dispatchEvent(new Event('lamp:ready')); }
   }
-  frame();
+  loop();
 
   return {
-    toggle() { on = !on; return on; },
-    isOn: () => on,
+    toggle() { on = !on; if (on) flicker = 0.45; return on; },
+    burst: moneyBurst,
   };
 }
 
-// Montage automatique
+/* Montage */
 const el = document.getElementById('lamp-canvas');
 if (el) {
   document.fonts.ready.then(() => {
     try {
-      window.Lamp = mountLamp(el);
+      window.Lamp = mountScene(el, { dragTarget: el.closest('section') });
+      document.documentElement.classList.add('has-3d');
     } catch (err) {
       console.error(err);
       document.documentElement.classList.add('no-webgl');
+      window.__lampReady = true;
       window.dispatchEvent(new Event('lamp:ready'));
     }
   });

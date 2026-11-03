@@ -1,4 +1,4 @@
-# NEON STACK — boutique monoproduit
+# LA LIASSE — boutique monoproduit
 
 Prototype statique (HTML/CSS/JS + Three.js), à convertir ensuite en thème Shopify.
 

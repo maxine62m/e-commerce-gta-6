@@ -333,10 +333,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
   .hero { min-height: 0; }
   .hero__inner { grid-template-columns: 1fr; gap: 0; padding-top: 0; }
   .hero__stage { height: 56vh; min-height: 340px; max-height: 480px; }
-  .sky { background: linear-gradient(180deg, #14061f 0%, #3a0f5c 18%, #8e1f73 32%, #ff5a7a 42%, #ff9a52 48%, #14061f 48.2%); }
-  .sun { left: 50%; top: 14%; width: 86vw; }
-  .palms { top: calc(48% - 150px); height: 152px; }
-  .grid { top: 48%; }
+  .hero .sky { background: linear-gradient(180deg, #14061f 0%, #3a0f5c 18%, #8e1f73 32%, #ff5a7a 42%, #ff9a52 48%, #14061f 48.2%); }
+  .hero .sun { left: 50%; top: 14%; width: 86vw; }
+  .hero .palms { top: calc(48% - 150px); height: 152px; }
+  .hero .grid { top: 48%; }
   .sticky-buy { display: flex; }
   .gallery { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 160px; }
   .spec-list { grid-template-columns: 1fr; }
@@ -360,5 +360,75 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .sun { z-index: 0; }
 .sky::after { content: ''; position: absolute; left: 0; right: 0; top: 82%; bottom: 0; background: linear-gradient(180deg, #2a0b3d, var(--night)); z-index: 1; }
 .palms, .grid { z-index: 2; }
-@media (max-width: 860px) { .sky::after { top: 48%; } }
+@media (max-width: 860px) { .hero .sky::after { top: 48%; } }
 .line .qty { display: inline-flex; }
+
+/* =========================================================
+   v2 — Hero 3D plein écran + motion design
+   ========================================================= */
+.hero { min-height: calc(100svh - 100px); }
+.hero__stage { position: absolute; inset: 0; z-index: 0; height: auto; min-height: 0; max-height: none; }
+.hero__inner { pointer-events: none; }
+.hero__copy { pointer-events: auto; animation: heroIn .9s .9s cubic-bezier(.2,.8,.2,1) both; }
+.has-3d .hero .sky { display: none; }
+.stage__controls {
+  position: absolute; left: 30%; bottom: 28px; transform: translateX(-50%); z-index: 2;
+  display: flex; align-items: center; gap: 14px; white-space: nowrap;
+  animation: fadeUp .8s 2.2s both;
+}
+.power { position: static; }
+.stage__hint { position: static; transform: none; }
+.no-webgl .hero__fallback { position: absolute; left: 4%; top: 8%; width: 48%; height: 80%; }
+
+@keyframes heroIn { from { opacity: 0; transform: translateX(60px); } }
+@keyframes fadeUp { from { opacity: 0; transform: translate(-50%, 20px); } }
+.flicker { animation: flicker 6s 1.4s infinite both; }
+@keyframes flicker {
+  0%, 4%, 8%, 60%, 62%, 100% { opacity: 1; }
+  2%, 6%, 61% { opacity: .25; text-shadow: none; }
+}
+.hero__title { animation: titleIn 1s 1s both; }
+@keyframes titleIn { from { opacity: 0; letter-spacing: .3em; filter: blur(8px); } }
+.price__tag { animation: pulse 2s infinite; }
+@keyframes pulse { 50% { box-shadow: 0 0 28px var(--pink), 0 0 6px #fff; transform: scale(1.06); } }
+.btn--primary { position: relative; overflow: hidden; }
+.btn--primary::after {
+  content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%;
+  background: linear-gradient(100deg, transparent, #ffffff88, transparent);
+  transform: skewX(-20deg); animation: shine 3.5s 2.5s infinite;
+}
+@keyframes shine { 0% { left: -60%; } 30%, 100% { left: 130%; } }
+
+/* Palmiers néon décoratifs */
+.palm-deco { position: relative; }
+.palm-deco::before {
+  content: ''; position: absolute; left: -90px; top: 10px; width: 240px; height: 400px;
+  background: url('../img/palm-neon.svg') no-repeat center / contain;
+  opacity: .5; pointer-events: none; z-index: -1;
+  filter: drop-shadow(0 0 6px #ff2e88) drop-shadow(0 0 18px #ff2e88);
+  animation: sway 6s ease-in-out infinite; transform-origin: bottom center;
+}
+.palm-deco--right::before { left: auto; right: -90px; transform: scaleX(-1); animation-name: swayR; filter: drop-shadow(0 0 6px #22e4ff) drop-shadow(0 0 18px #22e4ff); }
+@keyframes sway { 50% { transform: rotate(2.5deg); } }
+@keyframes swayR { 0%, 100% { transform: scaleX(-1); } 50% { transform: scaleX(-1) rotate(2.5deg); } }
+
+/* CTA final : coucher de soleil Miami */
+.final { position: relative; overflow: hidden; min-height: 520px; display: grid; place-content: center; background: none; }
+.final .sky { z-index: -1; }
+.final .sun { left: 50%; top: 18%; width: min(440px, 80vw); }
+.final p { display: inline-block; padding: 8px 16px; border-radius: 999px; background: #14061fcc; color: var(--text); }
+.final .btn { justify-self: center; }
+
+@media (max-width: 860px) {
+  .hero { display: block; min-height: 0; }
+  .hero__stage { position: relative; height: 64svh; min-height: 400px; max-height: 600px; }
+  .hero__stage::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 90px; background: linear-gradient(transparent, var(--night)); pointer-events: none; }
+  .hero__spacer { display: none; }
+  .hero__inner { margin-top: -40px; padding-top: 0; }
+  .stage__controls { left: 50%; bottom: 46px; z-index: 3; }
+  .hero__copy { animation-name: heroInM; }
+  .palm-deco::before { opacity: .22; width: 160px; height: 270px; left: -70px; }
+  .palm-deco--right::before { right: -70px; }
+  .no-webgl .hero__fallback { position: static; width: 100%; height: 100%; }
+}
+@keyframes heroInM { from { opacity: 0; transform: translateY(40px); } }

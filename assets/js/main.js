@@ -1,7 +1,7 @@
 (() => {
   const PRODUCT = {
     id: 'neon-stack-lamp',
-    name: 'Lampe NEON STACK',
+    name: 'Lampe LA LIASSE',
     variant: 'Liasse à lévitation · LED chaude',
     price: 79,
     compareAt: 99,
@@ -14,7 +14,7 @@
 
   /* Loader */
   const loader = $('#loader');
-  const hideLoader = () => setTimeout(() => loader.classList.add('is-done'), 400);
+  const hideLoader = () => loader.classList.add('is-done');
   let loaded = false;
   const done = () => { if (!loaded) { loaded = true; hideLoader(); } };
   window.addEventListener('lamp:ready', done);
@@ -59,7 +59,7 @@
   }));
 
   /* Panier (localStorage — remplacé par le panier Shopify à l'intégration) */
-  const KEY = 'neonstack_cart';
+  const KEY = 'laliasse_cart';
   let qtyInCart = 0;
   try { qtyInCart = +localStorage.getItem(KEY) || 0; } catch (e) {}
   const save = () => { try { localStorage.setItem(KEY, qtyInCart); } catch (e) {} };
@@ -111,9 +111,10 @@
   function add(n) {
     qtyInCart = Math.min(10, qtyInCart + n);
     save(); render();
+    if (window.Lamp && window.scrollY < window.innerHeight) window.Lamp.burst(45);
     count.classList.remove('bump'); void count.offsetWidth; count.classList.add('bump');
     showToast('+ ' + n + ' liasse' + (n > 1 ? 's' : '') + ' dans le panier 💸');
-    setTimeout(openCart, 350);
+    setTimeout(openCart, window.scrollY < window.innerHeight ? 1100 : 350);
   }
   $('#addToCart').addEventListener('click', () => add(+qtyInput.value || 1));
   $('#stickyAdd').addEventListener('click', () => add(1));

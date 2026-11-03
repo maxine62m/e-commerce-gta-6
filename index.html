@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>NEON STACK — La lampe liasse à lévitation</title>
+  <title>LA LIASSE — La lampe liasse à lévitation</title>
   <meta name="description" content="La liasse de billets lumineuse qui flotte et tourne dans le vide. Lampe à lévitation magnétique, LED chaude. Livraison offerte en France.">
   <meta name="theme-color" content="#14061f">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
@@ -12,14 +12,21 @@
   <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700;800&family=Yellowtail&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="assets/css/style.css">
   <script type="importmap">
-    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
   </script>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><symbol id="palms" viewBox="0 0 1440 320"><g fill="#12051c">
+        <path d="M120 320 C130 220 140 150 118 70 L126 68 C150 150 146 230 138 320Z"/>
+        <path d="M122 70 c-40-30-90-25-120 5 c40-15 80-10 120 0Z M122 70 c-10-45-50-70-95-65 c40 10 70 35 95 65Z M122 70 c25-45 70-55 110-40 c-45 0-80 15-110 40Z M122 70 c45-15 95 5 115 40 c-35-25-75-35-115-40Z M122 70 c-50 0-85 30-95 70 c25-35 55-55 95-70Z"/>
+        <path d="M1300 320 C1290 230 1300 160 1330 95 L1338 98 C1312 165 1305 235 1316 320Z"/>
+        <path d="M1334 96 c-40-30-90-25-120 5 c40-15 80-10 120 0Z M1334 96 c-10-45-50-70-95-65 c40 10 70 35 95 65Z M1334 96 c25-45 70-55 110-40 c-45 0-80 15-110 40Z M1334 96 c45-15 95 5 115 40 c-35-25-75-35-115-40Z M1334 96 c40 10 70 45 70 90 c-15-40-40-65-70-90Z"/>
+        <path d="M0 300 Q200 270 420 292 T860 288 T1440 296 V320 H0Z"/>
+      </g></symbol></svg>
 
 <!-- Écran de chargement façon jeu -->
 <div class="loader" id="loader" aria-hidden="true">
-  <div class="loader__logo"><span class="neon-script">Neon</span><span class="neon-block">STACK</span></div>
+  <div class="loader__logo"><span class="neon-script">La</span><span class="neon-block">LIASSE</span></div>
   <div class="loader__bar"><span></span></div>
   <p class="loader__tip">ASTUCE : la liasse flotte mieux quand on la lâche doucement.</p>
 </div>
@@ -31,8 +38,8 @@
 </div>
 
 <header class="header" id="header">
-  <a href="#" class="logo" aria-label="NEON STACK, accueil">
-    <span class="neon-script">Neon</span><span class="neon-block">STACK</span>
+  <a href="#" class="logo" aria-label="LA LIASSE, accueil">
+    <span class="neon-script">La</span><span class="neon-block">LIASSE</span>
   </a>
   <nav class="nav" id="nav">
     <a href="#produit">La lampe</a>
@@ -53,34 +60,29 @@
 <section class="hero" id="produit">
   <div class="sky" aria-hidden="true">
     <div class="sun"></div>
-    <svg class="palms" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMax slice">
-      <g fill="#12051c">
-        <path d="M120 320 C130 220 140 150 118 70 L126 68 C150 150 146 230 138 320Z"/>
-        <path d="M122 70 c-40-30-90-25-120 5 c40-15 80-10 120 0Z M122 70 c-10-45-50-70-95-65 c40 10 70 35 95 65Z M122 70 c25-45 70-55 110-40 c-45 0-80 15-110 40Z M122 70 c45-15 95 5 115 40 c-35-25-75-35-115-40Z M122 70 c-50 0-85 30-95 70 c25-35 55-55 95-70Z"/>
-        <path d="M1300 320 C1290 230 1300 160 1330 95 L1338 98 C1312 165 1305 235 1316 320Z"/>
-        <path d="M1334 96 c-40-30-90-25-120 5 c40-15 80-10 120 0Z M1334 96 c-10-45-50-70-95-65 c40 10 70 35 95 65Z M1334 96 c25-45 70-55 110-40 c-45 0-80 15-110 40Z M1334 96 c45-15 95 5 115 40 c-35-25-75-35-115-40Z M1334 96 c40 10 70 45 70 90 c-15-40-40-65-70-90Z"/>
-        <path d="M0 300 Q200 270 420 292 T860 288 T1440 296 V320 H0Z"/>
-      </g>
-    </svg>
+    <svg class="palms" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMax slice"><use href="#palms"/></svg>
     <div class="grid"></div>
   </div>
 
-  <div class="hero__inner">
-    <div class="hero__stage">
-      <canvas id="lamp-canvas" aria-label="Lampe NEON STACK en 3D. Glissez pour la faire tourner."></canvas>
-      <img class="hero__fallback" src="assets/img/photo-2.jpg" alt="Lampe NEON STACK allumée">
-      <div class="stage__hint">↔ Glisse pour tourner</div>
+  <div class="hero__stage">
+    <canvas id="lamp-canvas" aria-label="Lampe LA LIASSE en 3D. Glisse pour la faire tourner."></canvas>
+    <img class="hero__fallback" src="assets/img/photo-2.jpg" alt="Lampe LA LIASSE allumée">
+    <div class="stage__controls">
       <button class="power" id="powerBtn" aria-pressed="true">
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 3v8"/><path d="M6.3 7.5a8 8 0 1 0 11.4 0"/></svg>
         <span>Allumée</span>
       </button>
+      <span class="stage__hint">↔ Glisse pour tourner</span>
     </div>
+  </div>
 
+  <div class="hero__inner">
+    <div class="hero__spacer" aria-hidden="true"></div>
     <div class="hero__copy">
       <div class="wanted" aria-label="Note 4,9 sur 5">
         <span class="wanted__stars">★★★★★</span><span>4,9/5 · +1 200 clients</span>
       </div>
-      <h1 class="hero__title">Le magot<br><span class="neon-script big">qui flotte.</span></h1>
+      <h1 class="hero__title">Le magot<br><span class="neon-script big flicker">qui flotte.</span></h1>
       <p class="hero__lead">Une liasse lumineuse qui lévite et tourne dans le vide, sans fil ni astuce. Le butin parfait pour ta chambre, ton setup ou ton bureau.</p>
 
       <div class="price">
@@ -117,7 +119,7 @@
 </div>
 
 <!-- Atouts -->
-<section class="section features">
+<section class="section features palm-deco">
   <h2 class="section__title">Pourquoi tout le monde <span class="neon-script">la veut</span></h2>
   <div class="cards">
     <article class="card reveal">
@@ -186,7 +188,7 @@
 </section>
 
 <!-- Avis — EXEMPLES À REMPLACER PAR DE VRAIS AVIS AVANT LA MISE EN LIGNE -->
-<section class="section reviews" id="avis">
+<section class="section reviews palm-deco palm-deco--right" id="avis">
   <h2 class="section__title">Niveau de recherche : <span class="neon-script">5 étoiles</span></h2>
   <p class="reviews__score"><span class="wanted__stars">★★★★★</span> 4,9/5 sur 1 248 avis</p>
   <div class="review-grid">
@@ -223,6 +225,11 @@
 
 <!-- CTA final -->
 <section class="final">
+  <div class="sky" aria-hidden="true">
+    <div class="sun"></div>
+    <svg class="palms" viewBox="0 0 1440 320" preserveAspectRatio="xMidYMax slice"><use href="#palms"/></svg>
+    <div class="grid"></div>
+  </div>
   <h2><span class="neon-script big">Prends le butin.</span></h2>
   <p>79,00 € <s>99,00 €</s> · Livraison offerte · Offre jusqu'au 19.11</p>
   <a href="#produit" class="btn btn--primary">Je la veux</a>
@@ -231,14 +238,14 @@
 </main>
 
 <footer class="footer">
-  <div class="logo"><span class="neon-script">Neon</span><span class="neon-block">STACK</span></div>
+  <div class="logo"><span class="neon-script">La</span><span class="neon-block">LIASSE</span></div>
   <nav class="footer__links">
     <a href="politique-retour.html">Politique de retour</a>
     <a href="#">CGV</a>
     <a href="#">Mentions légales</a>
     <a href="#">Contact</a>
   </nav>
-  <p class="footer__legal">© 2026 NEON STACK. Produit décoratif. Les billets représentés sont fictifs. Site indépendant, sans lien avec un éditeur de jeu vidéo.</p>
+  <p class="footer__legal">© 2026 LA LIASSE. Produit décoratif. Les billets représentés sont fictifs. Site indépendant, sans lien avec un éditeur de jeu vidéo.</p>
 </footer>
 
 <!-- Barre d'achat mobile -->
